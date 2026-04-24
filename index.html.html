@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="theme-color" content="#ffffff"/>
+<title>Clínica de Podologia</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:16px;background:#f5f4f0;color:#1a1a18}
+.app{max-width:860px;margin:0 auto;padding:0 0 80px}
+.header{background:#fff;border-bottom:1px solid #e8e6e0;padding:14px 16px 12px;position:sticky;top:0;z-index:100}
+.header-row{display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:17px;font-weight:600;color:#1a1a18}
+.header-sub{font-size:12px;color:#888780;margin-top:2px}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0;transition:background 0.3s}
+.sync-dot.ok{background:#27ae60}
+.sync-dot.err{background:#e74c3c}
+.sync-dot.loading{background:#f39c12;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #e8e6e0;position:sticky;top:57px;z-index:99}
+.tab{flex:1;padding:11px 8px;font-size:13px;font-weight:500;color:#888780;background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;text-align:center}
+.tab.active{color:#1a1a18;border-bottom-color:#1a1a18}
+.section{display:none;padding:14px 12px}
+.section.visible{display:block}
+.prof-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px}
+@media(min-width:560px){.prof-grid{grid-template-columns:repeat(3,1fr)}}
+.prof-card{background:#fff;border:1px solid #e8e6e0;border-radius:14px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.prof-card-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.av-cris{background:#E1F5EE;color:#0F6E56}
+.av-bruna{background:#EEEDFE;color:#534AB7}
+.av-conc{background:#FFF3DC;color:#854F0B}
+.prof-name{font-size:15px;font-weight:600;color:#1a1a18}
+.prof-total-val{font-size:26px;font-weight:600;color:#1a1a18;margin-bottom:12px;letter-spacing:-0.5px}
+.prof-total-val span{font-size:12px;color:#888780;font-weight:400;margin-left:4px}
+.add-row{display:flex;gap:6px;margin-bottom:10px}
+.add-row input{flex:1;min-width:0;font-size:14px;padding:9px 10px;border-radius:10px;border:1px solid #e0ddd6;background:#fafaf8;color:#1a1a18;-webkit-appearance:none;appearance:none}
+.add-row input[type=number]{max-width:110px}
+.add-row input::placeholder{color:#bbb9b0}
+.add-row input:focus{outline:none;border-color:#1a1a18;background:#fff}
+.add-row button{padding:9px 14px;border-radius:10px;border:1px solid #1a1a18;background:#1a1a18;color:#fff;font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;min-width:44px}
+.add-row button:active{transform:scale(0.97)}
+.entries{max-height:130px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.entry{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0ede6;font-size:13px}
+.entry:last-child{border-bottom:none}
+.entry-label{color:#666;flex:1;margin-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entry-val{color:#1a1a18;font-weight:500;white-space:nowrap}
+.entry-del{background:none;border:none;color:#ccc;cursor:pointer;font-size:18px;padding:0 0 0 8px;line-height:1;min-width:28px;text-align:center}
+.entry-del:active{color:#c0392b}
+.empty-msg{font-size:12px;color:#bbb;padding:6px 0;text-align:center}
+.meds-card{background:#fff;border:1px solid #e8e6e0;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.meds-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.meds-icon{width:38px;height:38px;border-radius:50%;background:#E6F1FB;color:#185FA5;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.meds-title{font-size:15px;font-weight:600;color:#1a1a18}
+.meds-total-val{font-size:26px;font-weight:600;color:#1a1a18;margin-bottom:12px;letter-spacing:-0.5px}
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px}
+.metric{background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:10px 10px 8px}
+.metric-label{font-size:10px;color:#888780;margin-bottom:4px;line-height:1.3}
+.metric-value{font-size:15px;font-weight:600;color:#1a1a18;letter-spacing:-0.3px}
+.period-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.ptab{padding:6px 14px;border-radius:20px;border:1px solid #e0ddd6;background:#fff;cursor:pointer;font-size:13px;font-weight:500;color:#888780;transition:all 0.15s}
+.ptab.active{background:#1a1a18;color:#fff;border-color:#1a1a18}
+.ptab:active{transform:scale(0.97)}
+.report-block{background:#fff;border:1px solid #e8e6e0;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.block-title{font-size:10px;font-weight:600;color:#888780;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0ede6}
+.rrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0ede6;font-size:14px}
+.rrow:last-child{border-bottom:none}
+.rrow-name{color:#555;display:flex;align-items:center;gap:8px}
+.rrow-val{font-weight:600;color:#1a1a18}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-size:10px;font-weight:700}
+.badge-cris{background:#E1F5EE;color:#0F6E56}
+.badge-bruna{background:#EEEDFE;color:#534AB7}
+.badge-conc{background:#FFF3DC;color:#854F0B}
+.divider{height:1px;background:#f0ede6;margin:6px 0}
+.rrow-strong{font-weight:600;color:#1a1a18}
+.grand-total{background:#1a1a18;border-radius:14px;padding:16px;display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.grand-total-label{color:#fff;font-size:14px;font-weight:600}
+.grand-total-sub{color:#aaa;font-size:11px;margin-top:2px}
+.grand-total-val{color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.5px}
+.offline-bar{background:#f39c12;color:#fff;font-size:12px;text-align:center;padding:6px;display:none}
+.offline-bar.show{display:block}
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;z-index:200;flex-direction:column;gap:12px}
+.spinner{width:28px;height:28px;border:3px solid #e0ddd6;border-top-color:#1a1a18;border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:13px;color:#888}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a18;color:#fff;font-size:13px;padding:9px 18px;border-radius:20px;opacity:0;transition:all 0.25s;pointer-events:none;z-index:999;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="offline-bar" id="offlineBar">Sem conexão — dados sincronizam ao reconectar</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-txt">Conectando ao banco de dados...</div>
+</div>
+
+<div class="app">
+  <div class="header">
+    <div class="header-row">
+      <h1>Clínica de Podologia</h1>
+      <div class="sync-dot loading" id="syncDot" title="Sincronizando..."></div>
+    </div>
+    <div class="header-sub" id="todayStr"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tabLanc" onclick="showTab('lancamentos')">Lançamentos do dia</button>
+    <button class="tab" id="tabRel" onclick="showTab('relatorio')">Relatório</button>
+  </div>
+
+  <!-- LANÇAMENTOS -->
+  <div class="section visible" id="tab-lancamentos">
+    <div class="prof-grid" id="profGrid"></div>
+
+    <div class="meds-card">
+      <div class="meds-header">
+        <div class="meds-icon">R$</div>
+        <div class="meds-title">Vendas de remédios</div>
+      </div>
+      <div class="meds-total-val" id="medsTotal">R$ 0,00 <span style="font-size:12px;color:#888780;font-weight:400">hoje</span></div>
+      <div class="add-row">
+        <input type="text" id="medsDesc" placeholder="Descrição (opcional)" autocomplete="off"/>
+        <input type="number" id="medsVal" placeholder="Valor R$" min="0" step="0.01" inputmode="decimal" autocomplete="off"/>
+        <button onclick="addEntry('meds')">+</button>
+      </div>
+      <div class="entries" id="medsEntries"></div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="metric"><div class="metric-label">Profissionais hoje</div><div class="metric-value" id="todayProfs">R$ 0</div></div>
+      <div class="metric"><div class="metric-label">Remédios hoje</div><div class="metric-value" id="todayMeds">R$ 0</div></div>
+      <div class="metric"><div class="metric-label">Total do dia</div><div class="metric-value" id="todayAll">R$ 0</div></div>
+    </div>
+  </div>
+
+  <!-- RELATÓRIO -->
+  <div class="section" id="tab-relatorio">
+    <div class="period-tabs">
+      <button class="ptab active" onclick="setPeriod(7,this)">7 dias</button>
+      <button class="ptab" onclick="setPeriod(15,this)">15 dias</button>
+      <button class="ptab" onclick="setPeriod(30,this)">30 dias</button>
+    </div>
+    <div id="reportContent">
+      <div style="text-align:center;color:#bbb;padding:30px;font-size:13px">Carregando...</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyCeH-4IFFUECZunHOnPtTRwBCsyNkengJY",
+  authDomain: "clinica-podolgia.firebaseapp.com",
+  projectId: "clinica-podolgia",
+  storageBucket: "clinica-podolgia.firebasestorage.app",
+  messagingSenderId: "506722652275",
+  appId: "1:506722652275:web:aff72dd9dfd82e83561a06"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+var PROFS = [
+  {id:'cris',  name:'Cris',      initials:'CR', badge:'badge-cris',  avClass:'av-cris'},
+  {id:'bruna', name:'Bruna',     initials:'BR', badge:'badge-bruna', avClass:'av-bruna'},
+  {id:'conc',  name:'Conceição', initials:'CO', badge:'badge-conc',  avClass:'av-conc'}
+];
+
+var currentDayData = {cris:[],bruna:[],conc:[],meds:[]};
+var allDaysCache = {};
+var currentPeriod = 7;
+var activeTab = 'lancamentos';
+
+function todayKey() {
+  return new Date().toISOString().slice(0,10);
+}
+
+function fmt(v) {
+  return Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+
+function fmtShort(v) {
+  v = Number(v);
+  if(v >= 1000) return 'R$' + (v/1000).toFixed(1).replace('.',',') + 'k';
+  return 'R$' + Math.round(v);
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2400);
+}
+
+function setSyncStatus(s) {
+  document.getElementById('syncDot').className = 'sync-dot ' + s;
+}
+
+function hideLoader() {
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+window.addEventListener('online',  function(){ document.getElementById('offlineBar').classList.remove('show'); });
+window.addEventListener('offline', function(){ document.getElementById('offlineBar').classList.add('show'); });
+if(!navigator.onLine) document.getElementById('offlineBar').classList.add('show');
+
+// Escuta tempo real
+db.collection('dias').doc(todayKey()).onSnapshot(function(snap) {
+  hideLoader();
+  if(snap.exists) {
+    currentDayData = snap.data();
+  } else {
+    currentDayData = {cris:[],bruna:[],conc:[],meds:[]};
+  }
+  allDaysCache[todayKey()] = currentDayData;
+  setSyncStatus('ok');
+  buildProfCards();
+  buildMeds();
+  buildSummary();
+  if(activeTab === 'relatorio') buildReport();
+}, function(err) {
+  hideLoader();
+  setSyncStatus('err');
+  showToast('Erro de conexão');
+});
+
+function saveDay(data) {
+  setSyncStatus('loading');
+  db.collection('dias').doc(todayKey()).set(data)
+    .then(function(){ setSyncStatus('ok'); })
+    .catch(function(){ setSyncStatus('err'); showToast('Erro ao salvar'); });
+}
+
+function addEntry(profId) {
+  var isM = profId === 'meds';
+  var descEl = document.getElementById(isM ? 'medsDesc' : 'desc_' + profId);
+  var valEl  = document.getElementById(isM ? 'medsVal'  : 'val_'  + profId);
+  var val = parseFloat(valEl.value.replace(',','.'));
+  if(!val || val <= 0) { valEl.focus(); return; }
+  var desc = (descEl && descEl.value.trim()) || 'Serviço';
+  var newData = JSON.parse(JSON.stringify(currentDayData));
+  if(!newData[profId]) newData[profId] = [];
+  newData[profId].push({desc:desc, val:val, ts:Date.now()});
+  valEl.value = '';
+  if(descEl) descEl.value = '';
+  currentDayData = newData;
+  buildProfCards();
+  buildMeds();
+  buildSummary();
+  saveDay(newData);
+}
+
+function delEntry(profId, idx) {
+  if(!confirm('Remover este lançamento?')) return;
+  var newData = JSON.parse(JSON.stringify(currentDayData));
+  newData[profId].splice(idx, 1);
+  currentDayData = newData;
+  buildProfCards();
+  buildMeds();
+  buildSummary();
+  saveDay(newData);
+}
+
+function buildProfCards() {
+  var html = '';
+  PROFS.forEach(function(p) {
+    var entries = currentDayData[p.id] || [];
+    var total = entries.reduce(function(a,e){ return a + Number(e.val); }, 0);
+    var eHtml = '';
+    if(entries.length) {
+      entries.slice().reverse().forEach(function(e, ri) {
+        var i = entries.length - 1 - ri;
+        eHtml += '<div class="entry">' +
+          '<span class="entry-label">' + e.desc + '</span>' +
+          '<span class="entry-val">' + fmt(e.val) + '</span>' +
+          '<button class="entry-del" onclick="delEntry(\'' + p.id + '\',' + i + ')">&#215;</button>' +
+          '</div>';
+      });
+    } else {
+      eHtml = '<div class="empty-msg">Nenhum lançamento ainda</div>';
+    }
+    html +=
+      '<div class="prof-card">' +
+        '<div class="prof-card-header">' +
+          '<div class="avatar ' + p.avClass + '">' + p.initials + '</div>' +
+          '<div class="prof-name">' + p.name + '</div>' +
+        '</div>' +
+        '<div class="prof-total-val">' + fmt(total) + ' <span>hoje</span></div>' +
+        '<div class="add-row">' +
+          '<input type="text" id="desc_' + p.id + '" placeholder="Servi&#231;o" autocomplete="off" style="flex:1.2"/>' +
+          '<input type="number" id="val_' + p.id + '" placeholder="R$ valor" min="0" step="0.01" inputmode="decimal" autocomplete="off" ' +
+            'onkeydown="if(event.key===\'Enter\')addEntry(\'' + p.id + '\')"/>' +
+          '<button onclick="addEntry(\'' + p.id + '\')">+</button>' +
+        '</div>' +
+        '<div class="entries">' + eHtml + '</div>' +
+      '</div>';
+  });
+  document.getElementById('profGrid').innerHTML = html;
+}
+
+function buildMeds() {
+  var meds = currentDayData.meds || [];
+  var total = meds.reduce(function(a,e){ return a + Number(e.val); }, 0);
+  document.getElementById('medsTotal').innerHTML =
+    fmt(total) + ' <span style="font-size:12px;color:#888780;font-weight:400">hoje</span>';
+  var html = '';
+  if(meds.length) {
+    meds.slice().reverse().forEach(function(e, ri) {
+      var i = meds.length - 1 - ri;
+      html += '<div class="entry">' +
+        '<span class="entry-label">' + (e.desc||'Rem&#233;dio') + '</span>' +
+        '<span class="entry-val">' + fmt(e.val) + '</span>' +
+        '<button class="entry-del" onclick="delEntry(\'meds\',' + i + ')">&#215;</button>' +
+        '</div>';
+    });
+  } else {
+    html = '<div class="empty-msg">Nenhum lan&#231;amento ainda</div>';
+  }
+  document.getElementById('medsEntries').innerHTML = html;
+}
+
+function buildSummary() {
+  var profTotal = PROFS.reduce(function(a,p){
+    return a + (currentDayData[p.id]||[]).reduce(function(b,e){ return b+Number(e.val); },0);
+  },0);
+  var medsTotal = (currentDayData.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
+  document.getElementById('todayProfs').textContent = fmtShort(profTotal);
+  document.getElementById('todayMeds').textContent  = fmtShort(medsTotal);
+  document.getElementById('todayAll').textContent   = fmtShort(profTotal + medsTotal);
+}
+
+function setPeriod(days, btn) {
+  currentPeriod = days;
+  document.querySelectorAll('.ptab').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  buildReport();
+}
+
+function loadAllDaysAndReport() {
+  document.getElementById('reportContent').innerHTML =
+    '<div style="text-align:center;color:#bbb;padding:30px;font-size:13px">Carregando...</div>';
+  db.collection('dias').get().then(function(snap) {
+    snap.forEach(function(d){ allDaysCache[d.id] = d.data(); });
+    buildReport();
+  }).catch(function(){ buildReport(); });
+}
+
+function getLastNDays(n) {
+  var result = {meds:0};
+  PROFS.forEach(function(p){ result[p.id] = 0; });
+  for(var i=0; i<n; i++) {
+    var d = new Date(); d.setDate(d.getDate()-i);
+    var key = d.toISOString().slice(0,10);
+    var day = allDaysCache[key];
+    if(day) {
+      PROFS.forEach(function(p){
+        result[p.id] += (day[p.id]||[]).reduce(function(a,e){ return a+Number(e.val); },0);
+      });
+      result.meds += (day.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
+    }
+  }
+  return result;
+}
+
+function buildReport() {
+  var r = getLastNDays(currentPeriod);
+  var profTotal = PROFS.reduce(function(a,p){ return a+r[p.id]; },0);
+  var grandTotal = profTotal + r.meds;
+  var profRows = '';
+  PROFS.forEach(function(p){
+    profRows +=
+      '<div class="rrow">' +
+        '<span class="rrow-name"><span class="badge ' + p.badge + '">' + p.initials + '</span>' + p.name + '</span>' +
+        '<span class="rrow-val">' + fmt(r[p.id]) + '</span>' +
+      '</div>';
+  });
+  document.getElementById('reportContent').innerHTML =
+    '<div class="report-block">' +
+      '<div class="block-title">Por profissional &mdash; &uacute;ltimos ' + currentPeriod + ' dias</div>' +
+      profRows +
+      '<div class="divider"></div>' +
+      '<div class="rrow"><span class="rrow-strong">Subtotal profissionais</span><span class="rrow-val">' + fmt(profTotal) + '</span></div>' +
+    '</div>' +
+    '<div class="report-block">' +
+      '<div class="block-title">Vendas de rem&eacute;dios &mdash; &uacute;ltimos ' + currentPeriod + ' dias</div>' +
+      '<div class="rrow"><span class="rrow-name">Total rem&eacute;dios</span><span class="rrow-val">' + fmt(r.meds) + '</span></div>' +
+    '</div>' +
+    '<div class="grand-total">' +
+      '<div><div class="grand-total-label">Faturamento total</div>' +
+      '<div class="grand-total-sub">&uacute;ltimos ' + currentPeriod + ' dias &middot; todas + rem&eacute;dios</div></div>' +
+      '<div class="grand-total-val">' + fmt(grandTotal) + '</div>' +
+    '</div>';
+}
+
+function showTab(id) {
+  activeTab = id;
+  document.getElementById('tab-lancamentos').classList.remove('visible');
+  document.getElementById('tab-relatorio').classList.remove('visible');
+  document.getElementById('tab-' + id).classList.add('visible');
+  document.getElementById('tabLanc').classList.toggle('active', id === 'lancamentos');
+  document.getElementById('tabRel').classList.toggle('active', id === 'relatorio');
+  if(id === 'relatorio') loadAllDaysAndReport();
+}
+
+var dayNames = ['domingo','segunda-feira','ter\u00e7a-feira','quarta-feira','quinta-feira','sexta-feira','s\u00e1bado'];
+var monthNames = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+var now = new Date();
+document.getElementById('todayStr').textContent =
+  dayNames[now.getDay()] + ', ' + now.getDate() + ' de ' + monthNames[now.getMonth()] + ' de ' + now.getFullYear();
+
+buildProfCards();
+buildMeds();
+buildSummary();
+</script>
+</body>
+</html>
