@@ -169,11 +169,12 @@ html,body{min-height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI
   <div class="login-box">
     <div class="login-logo">🦶</div>
     <div class="login-title">Clínica de Podologia</div>
-    <div class="login-sub" id="loginSubtitle">Digite a senha para acessar</div>
+    <div class="login-sub">Entre com seu e-mail e senha</div>
+    <label class="login-label">E-mail</label>
+    <input class="login-input" type="email" id="email" placeholder="seu@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()"/>
     <label class="login-label">Senha</label>
-    <input class="login-input" type="password" id="loginInput" placeholder="••••••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
+    <input class="login-input" type="password" id="senha" placeholder="••••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
     <button class="login-btn" onclick="doLogin()">Entrar</button>
-    <div class="login-error" id="loginError"></div>
   </div>
 </div>
 
@@ -190,7 +191,7 @@ html,body{min-height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI
   </div>
 </div>
 
-<div class="offline-bar" id="offlineBar">Sem conexão — dados sincronizam ao reconectar</div>
+<div class="offline-bar" id="offlineBar">Sem conexão – dados sincronizam ao reconectar</div>
 <div class="loading-overlay" id="loadingOverlay" style="display:none">
   <div class="spinner"></div>
   <div class="loading-txt">Conectando...</div>
@@ -201,7 +202,8 @@ html,body{min-height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI
     <div class="header-row">
       <h1>Clínica de Podologia</h1>
       <div class="header-right">
-        <span id="roleLabel" style="font-size:11px;color:#888780"></span>
+        <span id="userEmail" style="font-size:11px;color:#888780"></span>
+        <span id="roleLabel" style="font-size:11px;color:#888780;margin-left:4px"></span>
         <button class="logout-btn" onclick="doLogout()">Sair</button>
         <div class="sync-dot loading" id="syncDot"></div>
       </div>
@@ -300,17 +302,11 @@ html,body{min-height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ---- CONFIG ----
-var USUARIOS = {
-  'podologia2023': {role:'admin', label:'Admin'},
-  'cris123':       {role:'cris',  label:'Cris'},
-  'bruna123':      {role:'bruna', label:'Bruna'},
-  'conc123':       {role:'conc',  label:'Conceição'}
-};
-
 var METAS = {cris:600, bruna:300, conc:300};
 
 var PROFS = [
@@ -319,13 +315,25 @@ var PROFS = [
   {id:'conc',  name:'Conceição', initials:'CO', badge:'badge-conc',  avClass:'av-conc'}
 ];
 
-var SESSION_KEY = 'pod_auth';
+// ---- AUTH MAP ----
+var USER_PROF_MAP = {
+  '9yt06w6d62XmnPQCmNokHvJvAi52': 'cris',
+  'zMkzkmtJ8cXNVPs3BsNck89z63J2': 'bruna',
+  'BTFPfyVSATMYCqHwxKRmiSxNXCb2': 'conc'
+};
+var ADMIN_UID = 'p4TH8k3yphMnFNixRmdo0HQPBXL2';
+
+function getCurrentProf() {
+  var user = firebase.auth().currentUser;
+  if (!user) return null;
+  return USER_PROF_MAP[user.uid] || null;
+}
+
 var currentRole = null;
 var db, currentDayData = {cris:[],bruna:[],conc:[],meds:[]};
-var allDaysCache = {};
 var currentPeriod = 7, currentServPeriod = 7;
 var activeTab = 'lancamentos';
-var editState = null; // {profId, idx}
+var editState = null;
 
 // ---- UTILS ----
 function todayKey(){ return new Date().toISOString().slice(0,10); }
@@ -354,52 +362,53 @@ function dateToKey(d){
 }
 
 // ---- LOGIN ----
-function doLogin(){
-  var val=document.getElementById('loginInput').value.trim();
-  var u=USUARIOS[val];
-  if(u){
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({role:u.role,label:u.label}));
-    currentRole=u.role;
-    document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('mainApp').style.display='block';
-    document.getElementById('loadingOverlay').style.display='flex';
-    document.getElementById('roleLabel').textContent=u.label;
-    applyRoleUI();
-    initApp();
-  } else {
-    document.getElementById('loginError').textContent='Senha incorreta.';
-    document.getElementById('loginInput').value='';
-    document.getElementById('loginInput').focus();
+async function doLogin(){
+  const email = document.getElementById('email').value.trim();
+  const senha = document.getElementById('senha').value;
+  try {
+    await firebase.auth().signInWithEmailAndPassword(email, senha);
+  } catch(e) {
+    alert('Erro no login: ' + e.message);
   }
 }
+
 function doLogout(){
-  sessionStorage.removeItem(SESSION_KEY);
-  location.reload();
+  firebase.auth().signOut();
 }
 
-// Verifica sessão
-var saved=sessionStorage.getItem(SESSION_KEY);
-if(saved){
-  try{
-    var u=JSON.parse(saved);
-    currentRole=u.role;
-    document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('mainApp').style.display='block';
-    document.getElementById('loadingOverlay').style.display='flex';
-    document.getElementById('roleLabel').textContent=u.label;
-    applyRoleUI();
-  } catch(e){ sessionStorage.removeItem(SESSION_KEY); }
+function showLogin(){
+  appStarted = false;
+  currentRole = null;
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('loadingOverlay').style.display = 'none';
 }
 
-function applyRoleUI(){
-  // Profissional vê só o próprio card e não vê exportar/relatório completo
+var appStarted = false;
+function showApp(user){
+  if(appStarted) return;
+  appStarted = true;
+  applyRoleFromUID(user.uid);
+  document.getElementById('userEmail').textContent = user.email;
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('mainApp').style.display = 'block';
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  initApp();
+}
+
+function applyRoleFromUID(uid){
+  if(uid === ADMIN_UID){
+    currentRole = 'admin';
+    document.getElementById('roleLabel').textContent = '· Admin';
+  } else {
+    var prof = USER_PROF_MAP[uid];
+    if(prof){
+      currentRole = prof;
+      document.getElementById('roleLabel').textContent = '· ' + prof.charAt(0).toUpperCase()+prof.slice(1);
+    }
+  }
   if(currentRole !== 'admin'){
     document.getElementById('tabExport').style.display='none';
-    // Relatório e serviços ficam mas mostram só a profissional
-  }
-  // Esconder add row de meds para profissional não-admin
-  if(currentRole !== 'admin'){
-    // meds são só admin
   }
 }
 
@@ -417,33 +426,28 @@ window.addEventListener('online',  function(){ document.getElementById('offlineB
 window.addEventListener('offline', function(){ document.getElementById('offlineBar').classList.add('show'); });
 if(!navigator.onLine) document.getElementById('offlineBar').classList.add('show');
 
-function initApp(){
-  if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-  db=firebase.firestore();
+firebase.initializeApp(firebaseConfig);
+db = firebase.firestore();
 
-  db.collection('dias').doc(todayKey()).onSnapshot(function(snap){
+firebase.auth().onAuthStateChanged(function(user){
+  if(user){
+    showApp(user);
+  } else {
+    showLogin();
+  }
+});
+
+function initApp(){
+  subscribeEntriesV2(todayKey(), function(entries){
     hideLoader();
-    currentDayData=snap.exists ? snap.data() : {cris:[],bruna:[],conc:[],meds:[]};
-    allDaysCache[todayKey()]=currentDayData;
+    currentDayData = getDayDataFromEntries(entries);
     setSyncStatus('ok');
     buildProfCards(); buildMeds(); buildSummary();
-    if(activeTab==='relatorio') buildReport();
-    if(activeTab==='servicos') buildServicos();
   }, function(){ hideLoader(); setSyncStatus('err'); showToast('Erro de conexão'); });
 
   setDateHeader();
   setDefaultDates();
   buildProfCards(); buildMeds(); buildSummary();
-}
-
-if(saved) { try{ var _u=JSON.parse(saved); if(_u.role) initApp(); }catch(e){} }
-
-// ---- SAVE ----
-function saveDay(data){
-  setSyncStatus('loading');
-  db.collection('dias').doc(todayKey()).set(data)
-    .then(function(){ setSyncStatus('ok'); })
-    .catch(function(){ setSyncStatus('err'); showToast('Erro ao salvar'); });
 }
 
 // ---- ADD ----
@@ -456,24 +460,19 @@ function addEntry(profId){
   var val=parseFloat(valEl.value.replace(',','.'));
   if(!val||val<=0){ valEl.focus(); return; }
   var desc=(descEl&&descEl.value.trim())||'Serviço';
-  var newData=JSON.parse(JSON.stringify(currentDayData));
-  if(!newData[profId]) newData[profId]=[];
-  newData[profId].push({desc:desc,val:val,ts:Date.now()});
   valEl.value=''; if(descEl) descEl.value='';
-  currentDayData=newData;
-  buildProfCards(); buildMeds(); buildSummary();
-  saveDay(newData);
+  addEntryV2({desc:desc, val:val})
+    .catch(function(e){ console.error('Erro ao adicionar:', e); showToast('Erro ao salvar'); });
 }
 
 // ---- DELETE ----
 function delEntry(profId,idx){
   if(currentRole !== 'admin' && profId !== currentRole) return;
   if(!confirm('Remover este lançamento?')) return;
-  var newData=JSON.parse(JSON.stringify(currentDayData));
-  newData[profId].splice(idx,1);
-  currentDayData=newData;
-  buildProfCards(); buildMeds(); buildSummary();
-  saveDay(newData);
+  var v2id=(currentDayData[profId][idx]||{}).v2id||null;
+  if(!v2id){ showToast('Lançamento sem ID — não foi possível remover'); return; }
+  deleteEntryV2(v2id)
+    .catch(function(e){ console.error('Erro ao remover:', e); showToast('Erro ao remover'); });
 }
 
 // ---- EDIT ----
@@ -492,12 +491,10 @@ function saveEdit(){
   var desc=document.getElementById('editDesc').value.trim()||'Serviço';
   var val=parseFloat(document.getElementById('editVal').value.replace(',','.'));
   if(!val||val<=0){ showToast('Valor inválido'); return; }
-  var newData=JSON.parse(JSON.stringify(currentDayData));
-  newData[editState.profId][editState.idx].desc=desc;
-  newData[editState.profId][editState.idx].val=val;
-  currentDayData=newData;
-  buildProfCards(); buildMeds(); buildSummary();
-  saveDay(newData);
+  var v2id=(currentDayData[editState.profId][editState.idx]||{}).v2id||null;
+  if(!v2id){ showToast('Lançamento sem ID — não foi possível editar'); return; }
+  updateEntryV2(v2id,{desc:desc,val:val})
+    .catch(function(e){ console.error('Erro ao atualizar:', e); showToast('Erro ao atualizar'); });
   closeEdit();
   showToast('Lançamento atualizado');
 }
@@ -540,7 +537,6 @@ function buildProfCards(){
   });
   grid.innerHTML=html;
 
-  // meds: só admin
   var medsWrap=document.getElementById('medsCardWrap');
   if(currentRole!=='admin'){ medsWrap.style.display='none'; } else { medsWrap.style.display=''; }
 }
@@ -569,12 +565,37 @@ function buildSummary(){
   document.getElementById('todayAll').textContent=fmtShort(pt+mt);
 }
 
-// ---- LOAD ALL DAYS ----
-function loadAllDays(cb){
-  db.collection('dias').get().then(function(snap){
-    snap.forEach(function(d){ allDaysCache[d.id]=d.data(); });
-    if(cb) cb();
-  }).catch(function(){ if(cb) cb(); });
+var allDaysCacheV2 = {};
+
+function loadAllDaysV2(cb){
+  allDaysCacheV2 = {};
+  db.collection('dias').get()
+    .then(function(snap){
+      var promises = [];
+      snap.forEach(function(dayDoc){
+        var dateKey = dayDoc.id;
+        var p = db.collection('dias').doc(dateKey)
+          .collection('entries').get()
+          .then(function(entriesSnap){
+            var entries = [];
+            entriesSnap.forEach(function(doc){
+              entries.push(Object.assign({ id: doc.id }, doc.data()));
+            });
+            allDaysCacheV2[dateKey] = getDayDataFromEntries(entries);
+          })
+          .catch(function(e){
+            console.error('Erro ao carregar entries do dia:', dateKey, e);
+            allDaysCacheV2[dateKey] = {cris:[], bruna:[], conc:[], meds:[]};
+          });
+        promises.push(p);
+      });
+      return Promise.all(promises);
+    })
+    .then(function(){ if(cb) cb(); })
+    .catch(function(e){
+      console.error('Erro loadAllDaysV2:', e);
+      if(cb) cb();
+    });
 }
 
 // ---- REPORT ----
@@ -599,7 +620,7 @@ function getDaysInRange(from,to){
   var end=new Date(to+'T00:00:00');
   while(cur<=end){
     var key=dateToKey(cur);
-    var day=allDaysCache[key];
+    var day=allDaysCacheV2[key];
     if(day){
       PROFS.forEach(function(p){ result[p.id]+=(day[p.id]||[]).reduce(function(a,e){ return a+Number(e.val); },0); });
       result.meds+=(day.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
@@ -628,7 +649,7 @@ function buildReportHTML(r,label){
 
 function buildReport(){
   document.getElementById('reportContent').innerHTML='<div class="empty-state">Carregando...</div>';
-  loadAllDays(function(){
+  loadAllDaysV2(function(){
     var r=getLastNDays(currentPeriod);
     document.getElementById('reportContent').innerHTML=buildReportHTML(r,'últimos '+currentPeriod+' dias');
   });
@@ -636,7 +657,7 @@ function buildReport(){
 
 function buildReportRange(from,to){
   document.getElementById('reportContent').innerHTML='<div class="empty-state">Carregando...</div>';
-  loadAllDays(function(){
+  loadAllDaysV2(function(){
     var r=getDaysInRange(from,to);
     document.getElementById('reportContent').innerHTML=buildReportHTML(r,formatDateBR(from)+' a '+formatDateBR(to));
   });
@@ -648,7 +669,7 @@ function getLastNDays(n){
   for(var i=0;i<n;i++){
     var d=new Date(); d.setDate(d.getDate()-i);
     var key=dateToKey(d);
-    var day=allDaysCache[key];
+    var day=allDaysCacheV2[key];
     if(day){
       PROFS.forEach(function(p){ result[p.id]+=(day[p.id]||[]).reduce(function(a,e){ return a+Number(e.val); },0); });
       result.meds+=(day.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
@@ -664,40 +685,41 @@ function loadHistorico(){
   if(!from||!to){ showToast('Selecione as datas'); return; }
   var list=document.getElementById('historicoList');
   list.innerHTML='<div class="empty-state">Carregando...</div>';
-  loadAllDays(function(){
-    var html='';
-    var cur=new Date(to+'T00:00:00');
-    var start=new Date(from+'T00:00:00');
-    var found=false;
-    while(cur>=start){
-      var key=dateToKey(cur);
-      var day=allDaysCache[key];
-      if(day){
-        var dayTotal=PROFS.reduce(function(a,p){ return a+(day[p.id]||[]).reduce(function(b,e){ return b+Number(e.val); },0); },0)
-          +(day.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
-        if(dayTotal>0){
-          found=true;
-          var profSections='';
-          var profsToShow=currentRole==='admin'?PROFS:PROFS.filter(function(p){ return p.id===currentRole; });
-          profsToShow.forEach(function(p){
-            var entries=day[p.id]||[];
-            if(entries.length){
-              var rows=entries.map(function(e){ return '<div class="hist-entry"><span>'+e.desc+'</span><span>'+fmt(e.val)+'</span></div>'; }).join('');
-              var subtotal=entries.reduce(function(a,e){ return a+Number(e.val); },0);
-              profSections+='<div class="hist-prof-section"><div class="hist-prof-name">'+p.name+' — '+fmt(subtotal)+'</div>'+rows+'</div>';
+  loadAllDaysV2(function(){
+      var cache=allDaysCacheV2;
+      var html='';
+      var cur=new Date(to+'T00:00:00');
+      var start=new Date(from+'T00:00:00');
+      var found=false;
+      while(cur>=start){
+        var key=dateToKey(cur);
+        var day=cache[key];
+        if(day){
+          var dayTotal=PROFS.reduce(function(a,p){ return a+(day[p.id]||[]).reduce(function(b,e){ return b+Number(e.val); },0); },0)
+            +(day.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
+          if(dayTotal>0){
+            found=true;
+            var profSections='';
+            var profsToShow=currentRole==='admin'?PROFS:PROFS.filter(function(p){ return p.id===currentRole; });
+            profsToShow.forEach(function(p){
+              var entries=day[p.id]||[];
+              if(entries.length){
+                var rows=entries.map(function(e){ return '<div class="hist-entry"><span>'+e.desc+'</span><span>'+fmt(e.val)+'</span></div>'; }).join('');
+                var subtotal=entries.reduce(function(a,e){ return a+Number(e.val); },0);
+                profSections+='<div class="hist-prof-section"><div class="hist-prof-name">'+p.name+' — '+fmt(subtotal)+'</div>'+rows+'</div>';
+              }
+            });
+            if(currentRole==='admin' && (day.meds||[]).length){
+              var mrows=(day.meds||[]).map(function(e){ return '<div class="hist-entry"><span>'+(e.desc||'Remédio')+'</span><span>'+fmt(e.val)+'</span></div>'; }).join('');
+              var msubt=(day.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
+              profSections+='<div class="hist-prof-section"><div class="hist-prof-name">Remédios — '+fmt(msubt)+'</div>'+mrows+'</div>';
             }
-          });
-          if(currentRole==='admin' && (day.meds||[]).length){
-            var mrows=(day.meds||[]).map(function(e){ return '<div class="hist-entry"><span>'+(e.desc||'Remédio')+'</span><span>'+fmt(e.val)+'</span></div>'; }).join('');
-            var msubt=(day.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
-            profSections+='<div class="hist-prof-section"><div class="hist-prof-name">Remédios — '+fmt(msubt)+'</div>'+mrows+'</div>';
+            html+='<div class="hist-day"><div class="hist-day-header" onclick="toggleHistDay(this)"><span class="hist-day-date">'+formatDateBR(key)+'</span><span class="hist-day-total">'+fmt(dayTotal)+'</span></div><div class="hist-day-body">'+profSections+'</div></div>';
           }
-          html+='<div class="hist-day"><div class="hist-day-header" onclick="toggleHistDay(this)"><span class="hist-day-date">'+formatDateBR(key)+'</span><span class="hist-day-total">'+fmt(dayTotal)+'</span></div><div class="hist-day-body">'+profSections+'</div></div>';
         }
+        cur.setDate(cur.getDate()-1);
       }
-      cur.setDate(cur.getDate()-1);
-    }
-    list.innerHTML=found?html:'<div class="empty-state">Nenhum lançamento encontrado neste período</div>';
+      list.innerHTML=found?html:'<div class="empty-state">Nenhum lançamento encontrado neste período</div>';
   });
 }
 
@@ -717,13 +739,13 @@ function setServPeriod(days,btn){
 function buildServicos(){
   var el=document.getElementById('servicosContent');
   el.innerHTML='<div class="empty-state">Carregando...</div>';
-  loadAllDays(function(){
+  loadAllDaysV2(function(){
     var counts={};
     var totals={};
     for(var i=0;i<currentServPeriod;i++){
       var d=new Date(); d.setDate(d.getDate()-i);
       var key=dateToKey(d);
-      var day=allDaysCache[key];
+      var day=allDaysCacheV2[key];
       if(day){
         var profsToScan=currentRole==='admin'?PROFS:PROFS.filter(function(p){ return p.id===currentRole; });
         profsToScan.forEach(function(p){
@@ -756,15 +778,14 @@ function exportExcel(){
   var from=document.getElementById('expFrom').value;
   var to=document.getElementById('expTo').value;
   if(!from||!to){ showToast('Selecione o período'); return; }
-  loadAllDays(function(){
+  loadAllDaysV2(function(){
     var wb=XLSX.utils.book_new();
-    // Aba resumo
     var resumoData=[['Data','Cris','Bruna','Conceição','Subtotal Profissionais','Remédios','Total Dia']];
     var cur=new Date(from+'T00:00:00');
     var end=new Date(to+'T00:00:00');
     while(cur<=end){
       var key=dateToKey(cur);
-      var day=allDaysCache[key]||{};
+      var day=allDaysCacheV2[key]||{};
       var vals=PROFS.map(function(p){ return (day[p.id]||[]).reduce(function(a,e){ return a+Number(e.val); },0); });
       var meds=(day.meds||[]).reduce(function(a,e){ return a+Number(e.val); },0);
       var subProf=vals.reduce(function(a,b){ return a+b; },0);
@@ -775,13 +796,12 @@ function exportExcel(){
     ws1['!cols']=[{wch:12},{wch:12},{wch:12},{wch:14},{wch:22},{wch:12},{wch:12}];
     XLSX.utils.book_append_sheet(wb,ws1,'Resumo');
 
-    // Aba detalhada
     var detData=[['Data','Profissional/Setor','Descrição','Valor']];
     var cur2=new Date(from+'T00:00:00');
     var end2=new Date(to+'T00:00:00');
     while(cur2<=end2){
       var key2=dateToKey(cur2);
-      var day2=allDaysCache[key2]||{};
+      var day2=allDaysCacheV2[key2]||{};
       PROFS.forEach(function(p){
         (day2[p.id]||[]).forEach(function(e){
           detData.push([formatDateBR(key2),p.name,e.desc,Number(e.val)]);
@@ -806,13 +826,13 @@ function exportCSV(){
   var from=document.getElementById('expFrom').value;
   var to=document.getElementById('expTo').value;
   if(!from||!to){ showToast('Selecione o período'); return; }
-  loadAllDays(function(){
+  loadAllDaysV2(function(){
     var rows=['Data,Profissional,Descrição,Valor'];
     var cur=new Date(from+'T00:00:00');
     var end=new Date(to+'T00:00:00');
     while(cur<=end){
       var key=dateToKey(cur);
-      var day=allDaysCache[key]||{};
+      var day=allDaysCacheV2[key]||{};
       PROFS.forEach(function(p){
         (day[p.id]||[]).forEach(function(e){
           rows.push(formatDateBR(key)+','+p.name+','+'"'+(e.desc||'').replace(/"/g,'')+'",'+Number(e.val).toFixed(2).replace('.',','));
@@ -823,7 +843,7 @@ function exportCSV(){
       });
       cur.setDate(cur.getDate()+1);
     }
-    var blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+    var blob=new Blob(['﻿'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
     a.download='podologia_'+from+'_'+to+'.csv';
@@ -866,7 +886,81 @@ function setDefaultDates(){
   ['histFrom','relFrom','expFrom'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=d30key; });
   ['histTo','relTo','expTo'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=today; });
 }
+
+// ---- V2 API — subcoleção /dias/{date}/entries ----
+function addEntryV2(data) {
+  if (!firebase.auth().currentUser) return Promise.reject(new Error('Não autenticado'));
+  var date = data.date || todayKey();
+  var entry = {
+    desc:      data.desc    || 'Serviço',
+    val:       Number(data.val) || 0,
+    prof:      getCurrentProf(),
+    ownerId:   firebase.auth().currentUser.uid,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  return db.collection('dias').doc(date)
+    .collection('entries').add(entry);
+}
+
+function deleteEntryV2(id, date) {
+  if (!firebase.auth().currentUser) return Promise.reject(new Error('Não autenticado'));
+  return db.collection('dias').doc(date || todayKey())
+    .collection('entries').doc(id).delete();
+}
+
+function updateEntryV2(id, data, date) {
+  if (!firebase.auth().currentUser) return Promise.reject(new Error('Não autenticado'));
+  var updates = {};
+  if (data.desc    !== undefined) updates.desc    = data.desc;
+  if (data.val     !== undefined) updates.val     = Number(data.val);
+  if (data.prof    !== undefined) updates.prof    = data.prof;
+  if (data.ownerId !== undefined) updates.ownerId = data.ownerId;
+  return db.collection('dias').doc(date || todayKey())
+    .collection('entries').doc(id).update(updates);
+}
+
+// Sem orderBy no servidor: documentos com createdAt null (write otimista antes
+// do serverTimestamp resolver) seriam excluídos pelo Firestore com orderBy.
+// Ordenação feita no cliente com fallback em ts.
+function subscribeEntriesV2(date, callback, onError) {
+  if (!firebase.auth().currentUser) {
+    if (onError) onError(new Error('Não autenticado'));
+    return function(){};
+  }
+  var currentProf = getCurrentProf();
+  return db.collection('dias').doc(date)
+    .collection('entries')
+    .onSnapshot(function(snap) {
+      var entries = [];
+      snap.forEach(function(doc) {
+        entries.push(Object.assign({ id: doc.id }, doc.data()));
+      });
+      if (currentProf) {
+        entries = entries.filter(function(e) { return e.prof === currentProf; });
+      }
+      entries.sort(function(a, b) {
+        var ta = a.createdAt ? a.createdAt.toMillis() : (a.ts || 0);
+        var tb = b.createdAt ? b.createdAt.toMillis() : (b.ts || 0);
+        return ta - tb;
+      });
+      callback(entries);
+    }, onError || function(){});
+}
+
+function getDayDataFromEntries(entries) {
+  var KNOWN_PROFS = { cris: true, bruna: true, conc: true };
+  var result = { cris: [], bruna: [], conc: [], meds: [] };
+  entries.forEach(function(e) {
+    var bucket = (e.prof && KNOWN_PROFS[e.prof]) ? e.prof : 'meds';
+    result[bucket].push({
+      desc:  e.desc  || 'Serviço',
+      val:   isNaN(Number(e.val)) ? 0 : Number(e.val),
+      ts:    e.createdAt ? e.createdAt.toMillis() : Date.now(),
+      v2id:  e.id
+    });
+  });
+  return result;
+}
 </script>
 </body>
 </html>
-<!-- TESTE -->
