@@ -316,6 +316,7 @@ var PROFS = [
 ];
 
 // ---- AUTH MAP ----
+// Substituir pelos UIDs reais após criar os usuários no Firebase Auth Console
 var USER_PROF_MAP = {
   '9yt06w6d62XmnPQCmNokHvJvAi52': 'cris',
   'zMkzkmtJ8cXNVPs3BsNck89z63J2': 'bruna',
@@ -333,7 +334,7 @@ var currentRole = null;
 var db, currentDayData = {cris:[],bruna:[],conc:[],meds:[]};
 var currentPeriod = 7, currentServPeriod = 7;
 var activeTab = 'lancamentos';
-var editState = null;
+var editState = null; // {profId, idx}
 
 // ---- UTILS ----
 function todayKey(){ return new Date().toISOString().slice(0,10); }
@@ -438,6 +439,7 @@ firebase.auth().onAuthStateChanged(function(user){
 });
 
 function initApp(){
+
   subscribeEntriesV2(todayKey(), function(entries){
     hideLoader();
     currentDayData = getDayDataFromEntries(entries);
@@ -450,6 +452,7 @@ function initApp(){
   buildProfCards(); buildMeds(); buildSummary();
 }
 
+
 // ---- ADD ----
 function addEntry(profId){
   if(currentRole !== 'admin' && profId !== currentRole && profId !== 'meds') return;
@@ -461,7 +464,7 @@ function addEntry(profId){
   if(!val||val<=0){ valEl.focus(); return; }
   var desc=(descEl&&descEl.value.trim())||'Serviço';
   valEl.value=''; if(descEl) descEl.value='';
-  addEntryV2({desc:desc, val:val})
+  addEntryV2({desc:desc, val:val}, isM ? null : profId)
     .catch(function(e){ console.error('Erro ao adicionar:', e); showToast('Erro ao salvar'); });
 }
 
@@ -888,26 +891,38 @@ function setDefaultDates(){
 }
 
 // ---- V2 API — subcoleção /dias/{date}/entries ----
-function addEntryV2(data) {
+
+function addEntryV2(data, profOverride) {
   if (!firebase.auth().currentUser) return Promise.reject(new Error('Não autenticado'));
+  var currentUser = firebase.auth().currentUser;
+  var prof = getCurrentProf();
+  if (prof === null && profOverride !== undefined) {
+    // admin: usa o prof explicitamente passado pelo card (null = meds)
+    prof = profOverride;
+  }
   var date = data.date || todayKey();
   var entry = {
-    desc:      data.desc    || 'Serviço',
+    desc:      data.desc || 'Serviço',
     val:       Number(data.val) || 0,
-    prof:      getCurrentProf(),
-    ownerId:   firebase.auth().currentUser.uid,
+    prof:      prof,
+    ownerId:   currentUser.uid,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   };
   return db.collection('dias').doc(date)
     .collection('entries').add(entry);
 }
 
+// Remove um lançamento pelo id do documento.
+// Assume o dia de hoje; passe date como segundo argumento para outros dias.
 function deleteEntryV2(id, date) {
   if (!firebase.auth().currentUser) return Promise.reject(new Error('Não autenticado'));
   return db.collection('dias').doc(date || todayKey())
     .collection('entries').doc(id).delete();
 }
 
+// Atualiza campos de um lançamento existente (merge parcial).
+// data pode conter qualquer subconjunto de { desc, val, prof, ownerId }.
+// Assume o dia de hoje; passe date como terceiro argumento para outros dias.
 function updateEntryV2(id, data, date) {
   if (!firebase.auth().currentUser) return Promise.reject(new Error('Não autenticado'));
   var updates = {};
@@ -919,9 +934,13 @@ function updateEntryV2(id, data, date) {
     .collection('entries').doc(id).update(updates);
 }
 
-// Sem orderBy no servidor: documentos com createdAt null (write otimista antes
-// do serverTimestamp resolver) seriam excluídos pelo Firestore com orderBy.
-// Ordenação feita no cliente com fallback em ts.
+// Escuta em tempo real todos os lançamentos de um dia específico.
+// callback recebe array de { id, desc, val, prof, ownerId, createdAt }.
+// Retorna a função unsubscribe do onSnapshot.
+//
+// Sem orderBy: documentos com createdAt ainda null (write otimista local antes
+// do serverTimestamp resolver) seriam excluídos pelo Firestore se usássemos
+// orderBy no servidor. A ordenação é feita no cliente com fallback em ts.
 function subscribeEntriesV2(date, callback, onError) {
   if (!firebase.auth().currentUser) {
     if (onError) onError(new Error('Não autenticado'));
@@ -935,6 +954,7 @@ function subscribeEntriesV2(date, callback, onError) {
       snap.forEach(function(doc) {
         entries.push(Object.assign({ id: doc.id }, doc.data()));
       });
+      // Filtra por prof — admin (currentProf === null) vê tudo
       if (currentProf) {
         entries = entries.filter(function(e) { return e.prof === currentProf; });
       }
@@ -947,6 +967,10 @@ function subscribeEntriesV2(date, callback, onError) {
     }, onError || function(){});
 }
 
+// Converte array de entries V2 para o formato { cris, bruna, conc, meds }
+// usado por currentDayData e por todas as funções de UI existentes.
+// entries: [{ id, desc, val, prof, createdAt, ... }]
+// prof === null ou valor desconhecido → bucket 'meds'
 function getDayDataFromEntries(entries) {
   var KNOWN_PROFS = { cris: true, bruna: true, conc: true };
   var result = { cris: [], bruna: [], conc: [], meds: [] };
